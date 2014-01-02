@@ -324,6 +324,8 @@ class subtitle_status_widget extends WP_Widget {
         parent::WP_Widget(false, $name = "Subtitle Status");
     }
     function form($instance) {
+        global $wpdb;
+        $dbprefix = $wpdb->prefix . "substat_";
         if( $instance) {
             $episode_id = esc_attr($instance['episode_id']);
         } else {
@@ -331,8 +333,15 @@ class subtitle_status_widget extends WP_Widget {
         }
 ?>
 <p>
-<label for="<?php echo $this->get_field_id('episode_id'); ?>">Episode Database Id</label>
-<input class="widefat" id="<?php echo $this->get_field_id('episode_id'); ?>" name="<?php echo $this->get_field_name('episode_id'); ?>" type="text" value="<?php echo $episode_id; ?>" />
+<label for="<?php echo $this->get_field_id('episode_id'); ?>">Episode:</label>
+<select name="<?php echo $this->get_field_name('episode_id'); ?>" id="<?php echo $this->get_field_id('episode_id'); ?>" class="widefat">
+<?php
+$options = $wpdb->get_results("SELECT e.id, name, episode_number FROM ${dbprefix}episode e INNER JOIN ${dbprefix}series s ON e.series_id = s.id ORDER BY name, episode_number");
+foreach ($options as $option) {
+echo '<option value="' . htmlspecialchars($option->id) . '" id="' . htmlspecialchars($option->id) . '"', $episode_id == $option->id ? ' selected="selected"' : '', '>', htmlspecialchars($option->name . ' ' . $option->episode_number), '</option>';
+}
+?>
+</select>
 </p>
 <?php
 
