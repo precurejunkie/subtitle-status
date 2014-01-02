@@ -14,7 +14,8 @@ register_activation_hook( __FILE__, 'substatus_install' );
 register_activation_hook( __FILE__, 'substatus_install_data' );
 add_action( 'admin_enqueue_scripts', 'substat_enqueue_color_picker' );
 add_action( 'wp_enqueue_scripts', 'substat_enqueue_widget_css' );
-add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget");'));
+add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget_episode");'));
+add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget_listall");'));
 function substat_enqueue_color_picker( $hook_suffix ) {
     // first check that $hook_suffix is appropriate for your admin page
     wp_enqueue_style( 'wp-color-picker' );
@@ -319,9 +320,9 @@ function substatus_emit_widget_episode($episode_id) {
 <?php
 }
 
-class subtitle_status_widget extends WP_Widget {
-    function subtitle_status_widget() {
-        parent::WP_Widget(false, $name = "Subtitle Status");
+class subtitle_status_widget_episode extends WP_Widget {
+    function subtitle_status_widget_episode() {
+        parent::WP_Widget(false, $name = "Subtitle Status Single Episode");
     }
     function form($instance) {
         global $wpdb;
@@ -360,4 +361,32 @@ echo '<option value="' . htmlspecialchars($option->id) . '" id="' . htmlspecialc
     }
 }
 
+class subtitle_status_widget_listall extends WP_Widget {
+    function subtitle_status_widget_listall() {
+        parent::WP_Widget(false, $name = "Subtitle Status All Episodes");
+    }
+    function form($instance) {
+?>
+<p>
+No configuration required.
+</p>
+<?php
+
+    }
+    function update($new_instance, $old_instance) {
+        $instance = $old_instance;
+        return $instance;
+    }
+    function widget($args, $instance) {
+        global $wpdb;
+        $dbprefix = $wpdb->prefix . "substat_";
+        extract($args);
+        echo $before_widget;
+        $episodes = $wpdb->get_results("SELECT * FROM ${dbprefix}episode ORDER BY series_id, episode_number");
+        foreach ($episodes as $episode) {
+            substatus_emit_widget_episode( $episode->id );
+        }
+        echo $after_widget;
+    }
+}
 ?>
