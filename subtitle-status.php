@@ -29,7 +29,7 @@ function substat_enqueue_widget_css() {
 }
 
 global $substatus_db_version;
-$substatus_db_version = 2;
+$substatus_db_version = 3;
 
 function substatus_create_table($ddl) {
     global $wpdb;
@@ -74,6 +74,7 @@ function substatus_install() {
   id             MEDIUMINT(9) NOT NULL AUTO_INCREMENT,
   series_id      MEDIUMINT(9),
   episode_number VARCHAR(20),
+  visible        INT(1) DEFAULT 0,
   PRIMARY KEY (id),
   UNIQUE (episode_number),
   FOREIGN KEY (series_id) REFERENCES ${dbprefix}series (id)
@@ -137,6 +138,10 @@ function substatus_install() {
     if ($installed_version < 2) {
         $wpdb->query("ALTER TABLE ${dbprefix}workstation_status ADD COLUMN status_date TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
         $wpdb->query("UPDATE ${dbprefix}workstation_status SET status_date = NOW()");
+    }
+    if ($installed_version < 3) {
+        $wpdb->query("ALTER TABLE ${dbprefix}episode ADD COLUMN visible INT(1) DEFAULT 0");
+        $wpdb->query("UPDATE ${dbprefix}episode SET visible=1");
     }
     if ($installed_version < $substatus_db_version ) {
         update_option( "substatus_db_version", $substatus_db_version );
@@ -405,7 +410,7 @@ No configuration required.
         $dbprefix = $wpdb->prefix . "substat_";
         extract($args);
         echo $before_widget;
-        $episodes = $wpdb->get_results("SELECT * FROM ${dbprefix}episode ORDER BY series_id, episode_number");
+        $episodes = $wpdb->get_results("SELECT * FROM ${dbprefix}episode WHERE visible = 1 ORDER BY series_id, episode_number");
         foreach ($episodes as $episode) {
             substatus_emit_widget_episode( $episode->id );
         }
