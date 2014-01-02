@@ -16,6 +16,8 @@ add_action( 'admin_enqueue_scripts', 'substat_enqueue_color_picker' );
 add_action( 'wp_enqueue_scripts', 'substat_enqueue_widget_css' );
 add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget_episode");'));
 add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget_listall");'));
+add_action( 'plugins_loaded', 'substatus_update_db_check' );
+
 function substat_enqueue_color_picker( $hook_suffix ) {
     // first check that $hook_suffix is appropriate for your admin page
     wp_enqueue_style( 'wp-color-picker' );
@@ -27,7 +29,7 @@ function substat_enqueue_widget_css() {
 }
 
 global $substatus_db_version;
-$substatus_db_version = "1.0";
+$substatus_db_version = 2;
 
 function substatus_create_table($ddl) {
     global $wpdb;
@@ -124,7 +126,27 @@ function substatus_install() {
 );";
     substatus_create_table( $sql );
 
-   add_option( "substatus_db_version", $substatus_db_version );
+    $installed_version = get_option("substatus_db_version");
+    if (empty($installed_version)) {
+        // if we get here, it's a new install, and the schema will be correct
+        // from the initialization, so make it the current version so we don't
+        // run any update code.
+        $installed_version = $substatus_db_version;
+        add_option( "substatus_db_version", $substatus_db_version );
+    }
+    if ($installed_version < 2) {
+        $wpdb->query("ALTER TABLE ${dbprefix}workstation_status ADD COLUMN status_date TIMESTAMP");
+    }
+    if ($installed_version < $substatus_db_version ) {
+        update_option( "substatus_db_version", $substatus_db_version );
+    }
+}
+
+function substatus_update_db_check() {
+    global $substatus_db_version;
+    if (get_site_option( 'substatus_db_version' ) != $substatus_db_version) {
+        substatus_install();
+    }
 }
 
 function substatus_install_data() {
