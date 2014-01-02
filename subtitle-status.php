@@ -117,7 +117,7 @@ function substatus_install() {
   workstation_id MEDIUMINT(9),
   status         MEDIUMINT(9),
   workername     VARCHAR(30),
-  status_date    TIMESTAMP,
+  status_date    TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE (episode_id, workstation_id),
   FOREIGN KEY (episode_id) REFERENCES ${dbprefix}episode (id),
@@ -135,7 +135,8 @@ function substatus_install() {
         add_option( "substatus_db_version", $substatus_db_version );
     }
     if ($installed_version < 2) {
-        $wpdb->query("ALTER TABLE ${dbprefix}workstation_status ADD COLUMN status_date TIMESTAMP");
+        $wpdb->query("ALTER TABLE ${dbprefix}workstation_status ADD COLUMN status_date TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+        $wpdb->query("UPDATE ${dbprefix}workstation_status SET status_date = NOW()");
     }
     if ($installed_version < $substatus_db_version ) {
         update_option( "substatus_db_version", $substatus_db_version );
