@@ -13,11 +13,18 @@ add_action( 'admin_menu', 'substatus_plugin_menu' );
 register_activation_hook( __FILE__, 'substatus_install' );
 register_activation_hook( __FILE__, 'substatus_install_data' );
 add_action( 'admin_enqueue_scripts', 'substat_enqueue_color_picker' );
+add_action( 'wp_enqueue_scripts', 'substat_enqueue_widget_css' );
+add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget");'));
 function substat_enqueue_color_picker( $hook_suffix ) {
     // first check that $hook_suffix is appropriate for your admin page
     wp_enqueue_style( 'wp-color-picker' );
     wp_enqueue_script( 'subtitle-status', plugins_url('substatus.js', __FILE__ ), array( 'wp-color-picker' ), false, true );
 }
+function substat_enqueue_widget_css() {
+    wp_register_style( 'subtitle-status', plugins_url('substatus.css', __FILE__) );
+    wp_enqueue_style( 'subtitle-status' );
+}
+
 global $substatus_db_version;
 $substatus_db_version = "1.0";
 
@@ -107,6 +114,7 @@ function substatus_install() {
   workstation_id MEDIUMINT(9),
   status         MEDIUMINT(9),
   workername     VARCHAR(30),
+  status_date    TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE (episode_id, workstation_id),
   FOREIGN KEY (episode_id) REFERENCES ${dbprefix}episode (id),
@@ -252,4 +260,95 @@ foreach ($results as $statuscode) {
 </div>
 <?php
 }
+
+function substatus_emit_widget_episode($episode_id) {
+    global $wpdb;
+    $dbprefix = $wpdb->prefix . "substat_";
+
+    $statusabbr = array();
+    $statuscolor = array();
+    $workstation = array();
+    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}statuscode ORDER BY id");
+    foreach ($results as $statusresult) {
+        $statusabbr[$statusresult->id] = $statusresult->abbrev;
+        $statuscolor[$statusresult->id] = $statusresult->color;
+    }
+    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}workstation ORDER BY id");
+    foreach ($results as $wsresult) {
+        $workstation[$wsresult->id] = $wsresult;
+    }
+    $episode_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM ${dbprefix}episode WHERE id=%d", array($episode_id)));
+    $episode_num = $episode_data->episode_number;
+    $series_id = $episode_data->series_id;
+    $series_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ${dbprefix}series WHERE id=%d", array($series_id)));
+    $results = $wpdb->get_results($wpdb->prepare("SELECT * FROM ${dbprefix}workstation_status WHERE episode_id=%d ORDER BY workstation_id", array($episode_id)));
+    foreach ($results as $wsstatus) {
+        $workstation[$wsstatus->workstation_id]->status = $statusabbr[$wsstatus->status];
+        $workstation[$wsstatus->workstation_id]->color = $statuscolor[$wsstatus->status];
+        $workstation[$wsstatus->workstation_id]->workername = $wsstatus->workername;
+    }
+?>
+<div class="substatus_episode_widget">
+<?php echo "<b>", htmlspecialchars("$series_name Episode $episode_num:"), "</b>"; ?><br />
+  <table>
+  <tr>
+  <?php foreach (array(1,2,5,6) as $wsnum) { ?>
+  <td title="<?php echo htmlspecialchars($workstation[$wsnum]->name), " - ", htmlspecialchars($workstation[$wsnum]->status); ?>"
+      style="background-color: <?php echo "#", htmlspecialchars($workstation[$wsnum]->color); ?>">
+     <?php echo htmlspecialchars($workstation[$wsnum]->abbrev); ?>
+  </td>
+<?php }
+  foreach (array(8,9,10) as $wsnum) { ?>
+  <td title="<?php echo htmlspecialchars($workstation[$wsnum]->name), " - ", htmlspecialchars($workstation[$wsnum]->status); ?>"
+      style="background-color: <?php echo "#", htmlspecialchars($workstation[$wsnum]->color); ?>" rowspan="2">
+     <?php echo htmlspecialchars($workstation[$wsnum]->abbrev); ?>
+  </td>
+<?php } ?>
+  </tr>
+  <tr>
+  <td style="border: none;"></td>
+<?php foreach (array(3,4,7) as $wsnum) { ?>
+  <td title="<?php echo htmlspecialchars($workstation[$wsnum]->name), " - ", htmlspecialchars($workstation[$wsnum]->status); ?>"
+      style="background-color: <?php echo "#", htmlspecialchars($workstation[$wsnum]->color); ?>">
+     <?php echo htmlspecialchars($workstation[$wsnum]->abbrev); ?>
+  </td>
+<?php } ?>
+  </tr>
+  </table>
+</div>
+<?php
+}
+
+class subtitle_status_widget extends WP_Widget {
+    function subtitle_status_widget() {
+        parent::WP_Widget(false, $name = "Subtitle Status");
+    }
+    function form($instance) {
+        if( $instance) {
+            $episode_id = esc_attr($instance['episode_id']);
+        } else {
+            $episode_id = 0;
+        }
+?>
+<p>
+<label for="<?php echo $this->get_field_id('episode_id'); ?>">Episode Database Id</label>
+<input class="widefat" id="<?php echo $this->get_field_id('episode_id'); ?>" name="<?php echo $this->get_field_name('episode_id'); ?>" type="text" value="<?php echo $episode_id; ?>" />
+</p>
+<?php
+
+    }
+    function update($new_instance, $old_instance) {
+        $instance = $old_instance;
+        // Fields
+        $instance['episode_id'] = strip_tags($new_instance['episode_id']);
+        return $instance;
+    }
+    function widget($args, $instance) {
+        extract($args);
+        echo $before_widget;
+        substatus_emit_widget_episode( $instance['episode_id'] );
+        echo $after_widget;
+    }
+}
+
 ?>
