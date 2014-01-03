@@ -13,6 +13,7 @@ add_action( 'admin_menu', 'substatus_plugin_menu' );
 register_activation_hook( __FILE__, 'substatus_install' );
 register_activation_hook( __FILE__, 'substatus_install_data' );
 add_action( 'admin_enqueue_scripts', 'substat_enqueue_color_picker' );
+add_action( 'admin_enqueue_scripts', 'substat_enqueue_widget_css' );
 add_action( 'wp_enqueue_scripts', 'substat_enqueue_widget_css' );
 add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget_episode");'));
 add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget_listall");'));
@@ -210,8 +211,8 @@ function substatus_options() {
     }
 
     // See if the user has posted us some information
-    // If they did, this hidden field will be set to 'Y'
-    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'Y' ) {
+    // If they did, this hidden field will be set to 'colors' or 'episodes'
+    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'colors' ) {
 
         // Put an settings updated message on the screen
         $results = $wpdb->get_results("SELECT id FROM ${dbprefix}statuscode ORDER BY id");
@@ -225,7 +226,19 @@ function substatus_options() {
             }
         }
 ?>
-<div class="updated"><p><strong><?php _e('settings saved.', 'subtitle-status' ); ?></strong></p></div>
+<div class="updated"><p><strong><?php _e('color settings saved.', 'subtitle-status' ); ?></strong></p></div>
+<?php
+
+    }
+    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'episodes' ) {
+        $results = $wpdb->get_results("SELECT * FROM ${dbprefix}episode ORDER BY id");
+        foreach ($results as $episode) {
+            $visible = 0;
+            if (isset($_POST["substat-episode-visible-" . $episode->id])) { $visible = 1; }
+            $wpdb->query($wpdb->prepare("UPDATE ${dbprefix}episode SET visible=%d WHERE id=%d", $visible, $episode->id));
+        }
+?>
+<div class="updated"><p><strong><?php _e('episode settings saved.', 'subtitle-status' ); ?></strong></p></div>
 <?php
 
     }
@@ -242,22 +255,10 @@ function substatus_options() {
 
     ?>
 
-<form name="form1" method="post" action="">
-<input type="hidden" name="<?php echo $hidden_field_name; ?>" value="Y">
-
-<div class="postbox" id="series-box" style="width: 300px">
-<h3>Series</h3>
-<table class="wp-list-table widefat">
-<thead><tr><th>Series Name</th><th>Actions</th></tr></thead>
-<tbody>
-<tr><td>Dokidoki! Precure</td><td><a href="">Edit</a> <a href="">Delete</a></td></tr>
-<tr><td>Fresh Pretty Cure</td><td><a href="">Edit</a> <a href="">Delete</a></td></tr>
-</tbody>
-</table>
-</div>
-
-<div class="postbox" id="status-colors-box" style="width: 200px">
-<h3>Status Colors</h3>
+<div class="postbox" id="status-colors-box" style="width: 200px; float: left; margin-right: 10px;">
+<h3 style="padding-left: 10px;">Status Colors</h3>
+<form name="substat-colors" method="post" action="">
+<input type="hidden" name="<?php echo $hidden_field_name; ?>" value="colors">
 <table class="wp-list-table widefat">
 <thead>
 <tr><th>Status</th><th>Color</th></tr>
@@ -279,13 +280,60 @@ foreach ($results as $statuscode) {
 ?>
 </tbody>
 </table>
-</div>
-
-<p class="submit">
+<p class="submit" style="text-align: center;">
 <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
 </p>
-
 </form>
+</div>
+
+<div class="postbox" id="series-box" style="width: 300px; float: left; margin-right: 10px;">
+<h3 style="padding-left: 10px;">Series</h3>
+<table class="wp-list-table widefat">
+<thead><tr><th>Series Name</th><th>Actions</th></tr></thead>
+<tbody>
+<?php
+    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}series ORDER BY id");
+    foreach ($results as $series) {
+?>
+    <tr><td><?php echo htmlspecialchars($series->name); ?></td><td><a href="">Edit</a></td></tr>
+<?php
+    }
+?>
+<tr><td></td><td><a href="">Add Series</a></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="postbox" id="episodes-box" style="width: 400px; clear: both; margin-right: 10px;">
+<h3 style="padding-left: 10px;">Episodes</h3>
+<form name="substat-episodes" method="post" action="">
+<input type="hidden" name="<?php echo $hidden_field_name; ?>" value="episodes">
+<table class="wp-list-table widefat">
+<thead><tr><th>Episode</th><th>Visible</th><th>Actions</th></tr></thead>
+<tbody>
+<?php
+    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}episode ORDER BY id");
+    foreach ($results as $episode) {
+?>
+    <tr>
+      <td><?php substatus_emit_widget_episode( $episode->id ); ?></td>
+      <td><input type="checkbox" name="substat-episode-visible-<?php echo htmlspecialchars($episode->id) ?>" value="1" <?php if ($episode->visible) { echo 'checked="checked"'; } ?>></td>
+      <td><a href="">Edit</a></td>
+    </tr>
+<?php
+    }
+?>
+<tr><td colspan="2">
+<p class="submit" style="text-align: center;">
+<input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
+</p>
+</td><td><a href="">Add Episode</a></td></tr>
+</tbody>
+</table>
+</form>
+</div>
+
+
 </div>
 <?php
 }
