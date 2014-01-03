@@ -243,6 +243,75 @@ function substatus_options() {
 
     }
 
+    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'episode-edit' ) {
+        $episode_id = $_POST["substat-episode-id"];
+
+?>
+<div class="error"><p><strong><?php _e('saving step changes is not yet implemented.', 'subtitle-status' ); ?></strong></p></div>
+<?php
+
+    }
+
+    $matches = array();
+    if( isset($_GET["action"]) && $_GET["action"] == "edit-episode" && isset($_GET["episode-id"]) && preg_match("/^(\d+)\$/",$_GET["episode-id"], &$matches)) {
+        $episode_id = $matches[0];
+
+        $statusabbr = array();
+        $statuscolor = array();
+        $workstation = array();
+        $results = $wpdb->get_results("SELECT * FROM ${dbprefix}statuscode ORDER BY id");
+        foreach ($results as $statusresult) {
+            $statusabbr[$statusresult->id] = $statusresult->abbrev;
+            $statuscolor[$statusresult->id] = $statusresult->color;
+        }
+        $results = $wpdb->get_results("SELECT * FROM ${dbprefix}workstation ORDER BY id");
+        foreach ($results as $wsresult) {
+            $workstation[$wsresult->id] = $wsresult;
+        }
+        $episode_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM ${dbprefix}episode WHERE id=%d", array($episode_id)));
+        $episode_num = $episode_data->episode_number;
+        $series_id = $episode_data->series_id;
+        $series_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ${dbprefix}series WHERE id=%d", array($series_id)));
+        $results = $wpdb->get_results($wpdb->prepare("SELECT * FROM ${dbprefix}workstation_status WHERE episode_id=%d ORDER BY workstation_id", array($episode_id)));
+        foreach ($results as $wsstatus) {
+            $workstation[$wsstatus->workstation_id]->status = $statusabbr[$wsstatus->status];
+            $workstation[$wsstatus->workstation_id]->color = $statuscolor[$wsstatus->status];
+            $workstation[$wsstatus->workstation_id]->workername = $wsstatus->workername;
+        }
+
+?>
+<div class="wrap">
+<?php echo "<h3>", htmlspecialchars("$series_name Episode $episode_num:"), "</h3>"; ?>
+<form name="substat-episode-edit" method="post" action="options-general.php?page=subtitle-status">
+<input type="hidden" name="<?php echo $hidden_field_name; ?>" value="episode-edit">
+<input type="hidden" name="substat-episode-id" value="<?php echo $episode_id; ?>">
+  <table>
+  <?php foreach (array(1,2,3,4,5,6,7,8,9,10) as $wsnum) { ?>
+  <tr style="background-color: <?php echo "#",htmlspecialchars($workstation[$wsnum]->color); ?>">
+  <td><?php echo htmlspecialchars($workstation[$wsnum]->name); ?></td>
+  <td><select name="substat-wsnum-<?php echo $wsnum; ?>">
+<?php
+        foreach ($statusabbr as $statnum => $stabbr) {
+            ?><option value="<?php echo $statnum ?>" onclick="void(this.parentNode.parentNode.parentNode.style.backgroundColor='<?php echo "#", htmlspecialchars($statuscolor[$statnum]); ?>');" <?php if ($workstation[$wsnum]->status == $statusabbr[$statnum]) { echo 'selected="selected"'; } ?>><?php echo htmlspecialchars($statusabbr[$statnum]); ?></option>
+<?php } ?>
+</select>
+  </td>
+  </tr>
+<?php }
+?>
+<tr><td colspan="2">
+<p class="submit" style="text-align: center;">
+<input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
+</p>
+</td></tr>
+</table>
+</form>
+</div>
+
+<?php
+    }
+    else {
+
     // Now display the settings editing screen
 
     echo '<div class="wrap">';
@@ -318,7 +387,7 @@ foreach ($results as $statuscode) {
     <tr>
       <td><?php substatus_emit_widget_episode( $episode->id ); ?></td>
       <td><input type="checkbox" name="substat-episode-visible-<?php echo htmlspecialchars($episode->id) ?>" value="1" <?php if ($episode->visible) { echo 'checked="checked"'; } ?>></td>
-      <td><a href="">Edit</a></td>
+      <td><a href="?page=subtitle-status&amp;action=edit-episode&amp;episode-id=<?php echo htmlspecialchars($episode->id) ?>">Edit</a></td>
     </tr>
 <?php
     }
@@ -336,6 +405,7 @@ foreach ($results as $statuscode) {
 
 </div>
 <?php
+    }
 }
 
 function substatus_emit_widget_episode($episode_id) {
