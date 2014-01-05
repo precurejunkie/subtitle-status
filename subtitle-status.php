@@ -210,8 +210,9 @@ function substatus_options() {
         wp_die( __( 'You do not have sufficient permissions to access this page.' ) );
     }
 
-    // See if the user has posted us some information
-    // If they did, this hidden field will be set to 'colors' or 'episodes'
+    //
+    // UPDATE COLOR SETTINGS
+    //
     if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'colors' ) {
 
         // Put an settings updated message on the screen
@@ -230,6 +231,10 @@ function substatus_options() {
 <?php
 
     }
+
+    //
+    // UPDATE EPISODE VISIBILITY
+    //
     if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'episodes' ) {
         $results = $wpdb->get_results("SELECT * FROM ${dbprefix}episode ORDER BY id");
         foreach ($results as $episode) {
@@ -243,73 +248,134 @@ function substatus_options() {
 
     }
 
+    //
+    // UPDATE EPISODE WORKSTATION STATUSES
+    //
+
     if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'episode-edit' ) {
         $episode_id = $_POST["substat-episode-id"];
-
+        if ( isset($_POST["Submit"]) && $_POST["Submit"] == __("Cancel") ) {
+            // User hit the cancel button - do nothing
+        }
+        else {
+            // User hit Save - do the save
+            $episode = substatus_get_episode($episode_id);
+            $status = substatus_get_statusinfo();
+            $passed = 1; // change to 0 if we get a form validation error
+            foreach ($episode->workstation as $workstation) {
+                if (isset($_POST["substat-wsnum-" . $workstation->id])) {
+                    $formstatus = $_POST["substat-wsnum-" . $workstation->id];
+                    if ($workstation->status != $formstatus && isset($status[$formstatus])) {
+                        $workstation->newstatus = $formstatus;
+                    }
+                }
+                else {
+                    $passed = 0;
+                }
+            }
+            if ($passed) {
+                // everything validated, let's update the database and tell the user
 ?>
-<div class="error"><p><strong><?php _e('saving step changes is not yet implemented.', 'subtitle-status' ); ?></strong></p></div>
+    <div class="updated">
 <?php
+                foreach ($episode->workstation as $workstation) {
+                    if (isset($workstation->newstatus)) {
+                        $wpdb->query($wpdb->prepare("UPDATE ${dbprefix}workstation_status SET status=%d WHERE episode_id=%d and workstation_id=%d", array($workstation->newstatus, $episode->id, $workstation->id)));
+                        echo "<p>Changed <strong>" . htmlspecialchars($workstation->name) . "</strong>";
+                        echo " on <strong>" . htmlspecialchars($episode->series_name) . " Episode " . htmlspecialchars($episode->episode_number) . "</strong>";
+                        echo " from <strong>" . htmlspecialchars($status[$workstation->status]->abbrev) . "</strong>";
+                        echo " to <strong>" . htmlspecialchars($status[$workstation->newstatus]->abbrev) . "</strong>";
+                        echo ".</p>";
+                    }
+                }
+?>
+    </div>
+<?php
+            } else {
+?>
+<div class="error"><p><strong><?php _e('Form validation error.', 'subtitle-status' ); ?></strong></p></div>
+<?php
+            }
+        }
+        // echo "<pre>";  print_r($episode); echo "</pre>";
 
     }
+
+    //
+    // EDIT EPISODE WORKSTATION STATUSES SCREEN
+    //
 
     $matches = array();
     if( isset($_GET["action"]) && $_GET["action"] == "edit-episode" && isset($_GET["episode-id"]) && preg_match("/^(\d+)\$/",$_GET["episode-id"], &$matches)) {
         $episode_id = $matches[0];
 
-        $statusabbr = array();
-        $statuscolor = array();
-        $workstation = array();
-        $results = $wpdb->get_results("SELECT * FROM ${dbprefix}statuscode ORDER BY id");
-        foreach ($results as $statusresult) {
-            $statusabbr[$statusresult->id] = $statusresult->abbrev;
-            $statuscolor[$statusresult->id] = $statusresult->color;
-        }
-        $results = $wpdb->get_results("SELECT * FROM ${dbprefix}workstation ORDER BY id");
-        foreach ($results as $wsresult) {
-            $workstation[$wsresult->id] = $wsresult;
-        }
-        $episode_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM ${dbprefix}episode WHERE id=%d", array($episode_id)));
-        $episode_num = $episode_data->episode_number;
-        $series_id = $episode_data->series_id;
-        $series_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ${dbprefix}series WHERE id=%d", array($series_id)));
-        $results = $wpdb->get_results($wpdb->prepare("SELECT * FROM ${dbprefix}workstation_status WHERE episode_id=%d ORDER BY workstation_id", array($episode_id)));
-        foreach ($results as $wsstatus) {
-            $workstation[$wsstatus->workstation_id]->status = $statusabbr[$wsstatus->status];
-            $workstation[$wsstatus->workstation_id]->color = $statuscolor[$wsstatus->status];
-            $workstation[$wsstatus->workstation_id]->workername = $wsstatus->workername;
-        }
+        $status = substatus_get_statusinfo();
+        $episode = substatus_get_episode($episode_id);
 
 ?>
 <div class="wrap">
-<?php echo "<h3>", htmlspecialchars("$series_name Episode $episode_num:"), "</h3>"; ?>
+<?php echo "<h3>", htmlspecialchars("$episode->series_name Episode $episode->episode_number:"), "</h3>";
+// The numbers in the following table are all generated by graphviz's "dot" when
+// given the dependency tree from the workstation_dependency table in the DB and
+// output using dot's "imap" format. Eventually we'll use Image/GraphViz to
+// generate this automatically
+//
+// digraph G {
+//     rankdir=TB
+//     ranksep=0.1
+//     node [shape=box, fixedsize=true, height=0.5, width=2.5]
+//     RAW [href="RAW"]
+//     WRE [href="WRE"]
+//     ......
+//     RAW -> WRE
+//     ......
+// }
+//
+// gives output like:
+//
+// base referer
+// rect RAW 5,5 245,53
+// rect WRE 5,64 245,112
+//
+//                    RAW, WRE,  TL, TLC,Time,  TS,Edit,  QC, ENC, REL
+$wsposleft = array(0,   5,   5, 269, 269,   5,   5, 269, 137, 137, 137);
+$wspostop  = array(0,   5,  64,  64, 123, 123, 181, 181, 240, 299, 357);
+$wsboxheight = 392; // top of bottom row + row height (357 + 35)
+?>
 <form name="substat-episode-edit" method="post" action="options-general.php?page=subtitle-status">
 <input type="hidden" name="<?php echo $hidden_field_name; ?>" value="episode-edit">
 <input type="hidden" name="substat-episode-id" value="<?php echo $episode_id; ?>">
-  <table>
+<div id="substat-wkstn-positions" style="height: <?php echo $wsboxheight; ?>px; position: relative;">
   <?php foreach (array(1,2,3,4,5,6,7,8,9,10) as $wsnum) { ?>
-  <tr style="background-color: <?php echo "#",htmlspecialchars($workstation[$wsnum]->color); ?>">
-  <td><?php echo htmlspecialchars($workstation[$wsnum]->name); ?></td>
-  <td><select name="substat-wsnum-<?php echo $wsnum; ?>">
+  <table style="width: 250px; height: 35px; position: absolute; left: <?php echo $wsposleft[$wsnum]; ?>px; top: <?php echo $wspostop[$wsnum]; ?>px;">
+  <tr style="background-color: <?php echo "#",htmlspecialchars($episode->workstation[$wsnum]->color); ?>">
+  <td style="width: 67%; padding: 0.5em;"><?php echo htmlspecialchars($episode->workstation[$wsnum]->name); ?></td>
+  <td style="width: 33%; padding: 0.5em;"><select id="substat-wsnum-<?php echo $wsnum; ?>" name="substat-wsnum-<?php echo $wsnum; ?>">
 <?php
-        foreach ($statusabbr as $statnum => $stabbr) {
-            ?><option value="<?php echo $statnum ?>" onclick="void(this.parentNode.parentNode.parentNode.style.backgroundColor='<?php echo "#", htmlspecialchars($statuscolor[$statnum]); ?>');" <?php if ($workstation[$wsnum]->status == $statusabbr[$statnum]) { echo 'selected="selected"'; } ?>><?php echo htmlspecialchars($statusabbr[$statnum]); ?></option>
+        foreach ($status as $statustype) {
+            ?><option value="<?php echo htmlspecialchars($statustype->id) ?>" onclick="void(this.parentNode.parentNode.parentNode.style.backgroundColor='<?php echo "#", htmlspecialchars($statustype->color); ?>');" <?php if ($episode->workstation[$wsnum]->status == $statustype->id) { echo 'selected="selected"'; } ?>><?php echo htmlspecialchars($statustype->abbrev); ?></option>
 <?php } ?>
 </select>
   </td>
   </tr>
+</table>
 <?php }
 ?>
-<tr><td colspan="2">
-<p class="submit" style="text-align: center;">
+</div>
+<p class="submit" style="text-align: left;">
 <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
+<input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Cancel') ?>" />
 </p>
-</td></tr>
-</table>
 </form>
 </div>
 
 <?php
+    // END OF EPISODE WORKSTATION STATUS EDIT SCREEN
     }
+
+    //
+    // MAIN SETTINGS SCREEN
+    //
     else {
 
     // Now display the settings editing screen
@@ -406,58 +472,83 @@ foreach ($results as $statuscode) {
 </div>
 <?php
     }
+} // END OF MAIN SETTINGS SCREEN
+
+// convenience function to load the status names and colors
+function substatus_get_statusinfo() {
+    global $wpdb;
+    $dbprefix = $wpdb->prefix . "substat_";
+
+    global $substat_status;
+    if (isset($substat_status)) {
+        return $substat_status;
+    }
+
+    $status = array();
+    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}statuscode ORDER BY id");
+    foreach ($results as $statusresult) {
+        $status[$statusresult->id] = (object) array();
+        $status[$statusresult->id]->id = $statusresult->id;
+        $status[$statusresult->id]->abbrev = $statusresult->abbrev;
+        $status[$statusresult->id]->color = $statusresult->color;
+    }
+    return $status;
 }
 
+// convenience function to get all the data related to an individual episode out of the database
+function substatus_get_episode($episode_id) {
+    global $wpdb;
+    $dbprefix = $wpdb->prefix . "substat_";
+
+    $status = substatus_get_statusinfo();
+    $episode = $wpdb->get_row($wpdb->prepare("SELECT * FROM ${dbprefix}episode WHERE id=%d", array($episode_id)));
+    $episode->series_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ${dbprefix}series WHERE id=%d", array($episode->series_id)));
+    $episode->workstation = array();
+    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}workstation ORDER BY id");
+    foreach ($results as $wsresult) {
+        $episode->workstation[$wsresult->id] = $wsresult;
+    }
+    $results = $wpdb->get_results($wpdb->prepare("SELECT * FROM ${dbprefix}workstation_status WHERE episode_id=%d ORDER BY workstation_id", array($episode_id)));
+    foreach ($results as $wsstatus) {
+        $episode->workstation[$wsstatus->workstation_id]->status = $status[$wsstatus->status]->id;
+        $episode->workstation[$wsstatus->workstation_id]->statusname = $status[$wsstatus->status]->abbrev;
+        $episode->workstation[$wsstatus->workstation_id]->color = $status[$wsstatus->status]->color;
+        $episode->workstation[$wsstatus->workstation_id]->workername = $wsstatus->workername;
+    }
+    return $episode;
+}
+
+// WIDGET GRID DISPLAY
+// Used both by the widget code and the admin screen
 function substatus_emit_widget_episode($episode_id) {
     global $wpdb;
     $dbprefix = $wpdb->prefix . "substat_";
 
-    $statusabbr = array();
-    $statuscolor = array();
-    $workstation = array();
-    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}statuscode ORDER BY id");
-    foreach ($results as $statusresult) {
-        $statusabbr[$statusresult->id] = $statusresult->abbrev;
-        $statuscolor[$statusresult->id] = $statusresult->color;
-    }
-    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}workstation ORDER BY id");
-    foreach ($results as $wsresult) {
-        $workstation[$wsresult->id] = $wsresult;
-    }
-    $episode_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM ${dbprefix}episode WHERE id=%d", array($episode_id)));
-    $episode_num = $episode_data->episode_number;
-    $series_id = $episode_data->series_id;
-    $series_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ${dbprefix}series WHERE id=%d", array($series_id)));
-    $results = $wpdb->get_results($wpdb->prepare("SELECT * FROM ${dbprefix}workstation_status WHERE episode_id=%d ORDER BY workstation_id", array($episode_id)));
-    foreach ($results as $wsstatus) {
-        $workstation[$wsstatus->workstation_id]->status = $statusabbr[$wsstatus->status];
-        $workstation[$wsstatus->workstation_id]->color = $statuscolor[$wsstatus->status];
-        $workstation[$wsstatus->workstation_id]->workername = $wsstatus->workername;
-    }
+    $episode = substatus_get_episode($episode_id);
 ?>
 <div class="substatus_episode_widget">
-<?php echo "<b>", htmlspecialchars("$series_name Episode $episode_num:"), "</b>"; ?><br />
+<?php echo "<b>", htmlspecialchars("$episode->series_name Episode $episode->episode_number:"), "</b>"; ?><br />
   <table>
   <tr>
   <?php foreach (array(1,2,5,6) as $wsnum) { ?>
-  <td title="<?php echo htmlspecialchars($workstation[$wsnum]->name), " - ", htmlspecialchars($workstation[$wsnum]->status); ?>"
-      style="background-color: <?php echo "#", htmlspecialchars($workstation[$wsnum]->color); ?>">
-     <?php echo htmlspecialchars($workstation[$wsnum]->abbrev); ?>
+  <td title="<?php echo htmlspecialchars($episode->workstation[$wsnum]->name), " - ", htmlspecialchars($episode->workstation[$wsnum]->statusname); ?>"
+      style="background-color: <?php echo "#", htmlspecialchars($episode->workstation[$wsnum]->color); ?>">
+     <?php echo htmlspecialchars($episode->workstation[$wsnum]->abbrev); ?>
   </td>
 <?php }
   foreach (array(8,9,10) as $wsnum) { ?>
-  <td title="<?php echo htmlspecialchars($workstation[$wsnum]->name), " - ", htmlspecialchars($workstation[$wsnum]->status); ?>"
-      style="background-color: <?php echo "#", htmlspecialchars($workstation[$wsnum]->color); ?>" rowspan="2">
-     <?php echo htmlspecialchars($workstation[$wsnum]->abbrev); ?>
+  <td title="<?php echo htmlspecialchars($episode->workstation[$wsnum]->name), " - ", htmlspecialchars($episode->workstation[$wsnum]->statusname); ?>"
+      style="background-color: <?php echo "#", htmlspecialchars($episode->workstation[$wsnum]->color); ?>" rowspan="2">
+     <?php echo htmlspecialchars($episode->workstation[$wsnum]->abbrev); ?>
   </td>
 <?php } ?>
   </tr>
   <tr>
   <td style="border: none;"></td>
 <?php foreach (array(3,4,7) as $wsnum) { ?>
-  <td title="<?php echo htmlspecialchars($workstation[$wsnum]->name), " - ", htmlspecialchars($workstation[$wsnum]->status); ?>"
-      style="background-color: <?php echo "#", htmlspecialchars($workstation[$wsnum]->color); ?>">
-     <?php echo htmlspecialchars($workstation[$wsnum]->abbrev); ?>
+  <td title="<?php echo htmlspecialchars($episode->workstation[$wsnum]->name), " - ", htmlspecialchars($episode->workstation[$wsnum]->statusname); ?>"
+      style="background-color: <?php echo "#", htmlspecialchars($episode->workstation[$wsnum]->color); ?>">
+     <?php echo htmlspecialchars($episode->workstation[$wsnum]->abbrev); ?>
   </td>
 <?php } ?>
   </tr>
@@ -466,6 +557,9 @@ function substatus_emit_widget_episode($episode_id) {
 <?php
 }
 
+//
+// THE SINGLE EPISODE WIDGET
+//
 class subtitle_status_widget_episode extends WP_Widget {
     function subtitle_status_widget_episode() {
         parent::WP_Widget(false, $name = "Subtitle Status Single Episode");
@@ -507,6 +601,9 @@ echo '<option value="' . htmlspecialchars($option->id) . '" id="' . htmlspecialc
     }
 }
 
+//
+// THE ALL-EPISODES WIDGET
+//
 class subtitle_status_widget_listall extends WP_Widget {
     function subtitle_status_widget_listall() {
         parent::WP_Widget(false, $name = "Subtitle Status All Episodes");
