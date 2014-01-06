@@ -249,9 +249,72 @@ function substatus_options() {
     }
 
     //
+    // ADD AN EPISODE
+    //
+    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'episode-add' ){
+        if ( isset($_POST["Submit"]) && $_POST["Submit"] == __("Cancel") ) {
+            // User hit the cancel button - do nothing
+        }
+        else {
+            $serieslist = array();
+            $results = $wpdb->get_results("SELECT * FROM ${dbprefix}series ORDER BY id");
+            foreach ($results as $seriesrow) {
+                $serieslist[$seriesrow->id] = $seriesrow;
+            }
+            $series_id = $_POST["substat_series_id"];
+            $episode_number = trim($_POST["substat_episode_number"]);
+            // check that a series_id was passed and that it actually exists
+            // and that an episode number was passed (though we don't care what that is)
+            if (isset($series_id) && isset($serieslist[$series_id]) && isset($episode_number)) {
+                $episodeexists = $wpdb->get_var($wpdb->prepare("SELECT id FROM ${dbprefix}episode WHERE series_id = %d AND episode_number = %s", array($series_id, $episode_number)));
+                if (isset($episodeexists)) {
+?>
+    <div class="error"><p><strong><?php echo htmlspecialchars($serieslist[$series_id]->name); ?> Episode <?php echo htmlspecialchars($episode_number); ?> already exists.</strong></p></div>
+<?php
+                }
+                else {
+                    // it validates, let's do the insert
+                    $wpdb->query($wpdb->prepare("INSERT INTO ${dbprefix}episode (series_id, episode_number, visible) VALUES (%d, %s, 0)", array($series_id, $episode_number)));
+                    $episode_id = $wpdb->insert_id;
+                    // check the workstation dependencies and set the initial statuses
+                    $workstation = array();
+                    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}workstation ORDER BY id");
+                    foreach ($results as $wsresult) {
+                        $workstation[$wsresult->id] = $wsresult;
+                        $workstation[$wsresult->id]->blocks = array();
+                        $workstation[$wsresult->id]->depends = array();
+                    }
+                    $results = $wpdb->get_results("SELECT * FROM ${dbprefix}workstation_dependency");
+                    foreach ($results as $result) {
+                        $workstation[$result->workstation_id]->depends[] = $result->requires;
+                        $workstation[$result->requires]->blocks[] = $result->workstation_id;
+                    }
+                    //echo "<pre>"; print_r($workstation); echo "</pre>";
+                    foreach ($workstation as $ws) {
+                        $status = 1; // "blocked" by default
+                        if (count($ws->depends) == 0) {
+                            $status = 2; // if it has no dependencies, it can be "waiting"
+                        }
+                        $wpdb->query($wpdb->prepare("INSERT INTO ${dbprefix}workstation_status (episode_id, workstation_id, status) VALUES (%d, %d, %d)", array($episode_id, $ws->id, $status)));
+                    }
+
+?>
+    <div class="updated"><p><strong><?php echo htmlspecialchars($serieslist[$series_id]->name); ?> Episode <?php echo htmlspecialchars($episode_number); ?> created.</strong></p></div>
+<?php
+                }
+            }
+            // form fields were missing or the series chosen didn't exist
+            else {
+?>
+<div class="error"><p><strong><?php _e('Form validation error.', 'subtitle-status' ); ?></strong></p></div>
+<?php
+            }
+        }
+    }
+
+    //
     // UPDATE EPISODE WORKSTATION STATUSES
     //
-
     if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'episode-edit' ) {
         $episode_id = $_POST["substat-episode-id"];
         if ( isset($_POST["Submit"]) && $_POST["Submit"] == __("Cancel") ) {
@@ -265,9 +328,13 @@ function substatus_options() {
             foreach ($episode->workstation as $workstation) {
                 if (isset($_POST["substat-wsnum-" . $workstation->id])) {
                     $formstatus = $_POST["substat-wsnum-" . $workstation->id];
+                    // check if the status passed is different than the existing one
+                    // **AND** is actually a valid status
                     if ($workstation->status != $formstatus && isset($status[$formstatus])) {
                         $workstation->newstatus = $formstatus;
                     }
+                    // TODO: enforce dependencies here, too (make sure you can't set something
+                    // completed if things it depends on are blocked, etc)
                 }
                 else {
                     $passed = 0;
@@ -301,12 +368,57 @@ function substatus_options() {
 
     }
 
+    // ============================
+    // screens and forms start here
+    // ============================
+
+    $matches = array();
+
+    //
+    // ADD EPISODE SCREEN
+    //
+    if( isset($_GET["action"]) && $_GET["action"] == "add-episode" ) {
+        $serieslist = array();
+        $results = $wpdb->get_results("SELECT * FROM ${dbprefix}series ORDER BY id");
+        foreach ($results as $seriesrow) {
+            $serieslist[$seriesrow->id] = $seriesrow;
+        }
+        $results = $wpdb->get_results("SELECT series_id, MAX(episode_number) AS max_episode_numberfrom ${dbprefix}episode group by series_id");
+        foreach ($results as $maxversrow) {
+            $serieslist[$maxversrow->series_id]->max_version_number = $maxversrow->max_version_number;
+        }
+?>
+    <h3>Add an episode</h3>
+<form name="substat-episode-edit" method="post" action="options-general.php?page=subtitle-status">
+<input type="hidden" name="<?php echo $hidden_field_name; ?>" value="episode-add">
+<table>
+  <tr><th>Series:</th>
+  <td><select name="substat_series_id">
+<?php
+        foreach ($serieslist as $series) {
+?>
+    <option value="<?php echo htmlspecialchars($series->id) ?>"><?php echo htmlspecialchars($series->name) ?></option>
+<?php
+        }
+?>
+    </select>
+    </td></tr>
+  <tr><th>Episode:</th><td><input type="text" name="substat_episode_number" /></td></tr>
+  <tr><td colspan="2">
+  <p class="submit" style="text-align: center;">
+  <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
+  <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Cancel') ?>" />
+  </p>
+  </td></tr>
+</table>
+</form>
+<?php
+    }
+
     //
     // EDIT EPISODE WORKSTATION STATUSES SCREEN
     //
-
-    $matches = array();
-    if( isset($_GET["action"]) && $_GET["action"] == "edit-episode" && isset($_GET["episode-id"]) && preg_match("/^(\d+)\$/",$_GET["episode-id"], &$matches)) {
+    elseif( isset($_GET["action"]) && $_GET["action"] == "edit-episode" && isset($_GET["episode-id"]) && preg_match("/^(\d+)\$/",$_GET["episode-id"], &$matches)) {
         $episode_id = $matches[0];
 
         $status = substatus_get_statusinfo();
@@ -462,7 +574,7 @@ foreach ($results as $statuscode) {
 <p class="submit" style="text-align: center;">
 <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
 </p>
-</td><td><a href="">Add Episode</a></td></tr>
+</td><td><a href="?page=subtitle-status&amp;action=add-episode">Add Episode</a></td></tr>
 </tbody>
 </table>
 </form>
