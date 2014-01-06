@@ -423,8 +423,135 @@ function substatus_options() {
 
         $status = substatus_get_statusinfo();
         $episode = substatus_get_episode($episode_id);
-
+        $workstation = array();
+        $results = $wpdb->get_results("SELECT * FROM ${dbprefix}workstation ORDER BY id");
+        foreach ($results as $wsresult) {
+            $workstation[$wsresult->id] = $wsresult;
+            $workstation[$wsresult->id]->blocks = array();
+            $workstation[$wsresult->id]->depends = array();
+        }
+        $results = $wpdb->get_results("SELECT * FROM ${dbprefix}workstation_dependency");
+        foreach ($results as $result) {
+            $workstation[$result->workstation_id]->depends[] = $result->requires;
+            $workstation[$result->requires]->blocks[] = $result->workstation_id;
+        }
 ?>
+        <script type="text/javascript"><!--
+            var workstation = {
+<?php
+        $loopstarted = 0;
+        foreach ($workstation as $ws) {
+            if ($loopstarted) { echo ", \n"; }
+            $loopstarted = 1;
+            echo "$ws->id: { ";
+            echo "blocks: [" . implode(",",$ws->blocks) . "], ";
+            echo "depends: [" . implode(",",$ws->depends) . "] ";
+            echo "}";
+        }
+        echo "\n";
+?>
+            };
+            var status_info = {
+<?php
+        $loopstarted = 0;
+        foreach ($status as $stat) {
+            if ($loopstarted) { echo ", \n"; }
+            $loopstarted = 1;
+            echo "$stat->id: {";
+            echo "name: '" . htmlspecialchars($stat->abbrev) . "', ";
+            echo "color: '#" . htmlspecialchars($stat->color) . "' ";
+            echo "}";
+        }
+        echo "\n";
+?>
+            };
+            function substatus_ws_triggers(thisws) {
+                var wsdiv = document.getElementById("substat-wkstn-positions");
+                var thisstatus = thisws.options[thisws.selectedIndex];
+                var ws = thisws.id.match(/-(\d+)$/)[1];
+                var wsname = document.getElementById("substat-wsname-" + ws).innerHTML;
+                var thisvalue = thisstatus.value;
+                var output = '';
+                if (thisvalue == 1) { // user trying to set it to blocked
+                    // none of the "blocks" stations can be anything other than blocked
+                    for (key in workstation[ws].blocks) {
+                        var blockedwsnum = workstation[ws].blocks[key];
+                        var blockedws = document.getElementById("substat-wsnum-" + blockedwsnum);
+                        if (blockedws.options[blockedws.selectedIndex].value != 1) {
+                            var blockedwsname = document.getElementById("substat-wsname-" + blockedwsnum).innerHTML;
+                            output = output + wsname + " blocks " + blockedwsname + " but " + blockedwsname + " is already set to a non-blocking status.\n";
+                        }
+                    }
+                    // at least one of the "depends" stations must not be completed or skipped
+                    var gotoneblocked = 0;
+                    var suboutput = '';
+                    for (key in workstation[ws].depends) {
+                        var dependentwsnum = workstation[ws].depends[key];
+                        var dependentws = document.getElementById("substat-wsnum-" + dependentwsnum);
+                        var dependentwsvalue = dependentws.options[dependentws.selectedIndex].value;
+                        if (dependentwsvalue == 5 || dependentws.value == 4) {
+                            var dependentwsname = document.getElementById("substat-wsname-" + dependentwsnum).innerHTML;
+                            suboutput = suboutput + wsname + " depends on " + dependentwsname + ", but " + dependentwsname + " is already " + status_info[dependentwsvalue].name + ", so " + wsname + " is, by definition, not blocked.\n";
+                        }
+                        else {
+                            gotoneblocked = 1;
+                        }
+                    }
+                    if (!gotoneblocked) {
+                        output = output + suboutput;
+                    }
+                }
+                else { // user setting to anything other than blocked
+                    // all of the "depends" stations must be completed or skipped
+                    for (key in workstation[ws].depends) {
+                        var dependentwsnum = workstation[ws].depends[key];
+                        var dependentws = document.getElementById("substat-wsnum-" + dependentwsnum);
+                        var dependentwsvalue = dependentws.options[dependentws.selectedIndex].value;
+                        if (dependentwsvalue != 5 && dependentwsvalue != 4) {
+                            var dependentwsname = document.getElementById("substat-wsname-" + dependentwsnum).innerHTML;
+                            output = output + wsname + " depends on " + dependentwsname + " but it hasn't yet been marked completed or skipped.\n";
+                        }
+                    }
+                }
+                if (output != '') {
+                    alert(output);
+                    thisws.value = document.getElementById("substat-wsnum-" + ws + "-oldvalue").value;
+                    return false;
+                }
+                // if we got here, the change is good.  Set the color to match and stash the new value.
+                thisws.parentNode.parentNode.style.backgroundColor = status_info[thisvalue].color;
+                document.getElementById("substat-wsnum-" + ws + "-oldvalue").value = thisws.options[thisws.selectedIndex].value;
+                // proactively set any blocked stations to "waiting" if all other dependencies are met
+                if (thisvalue == 4 || thisvalue == 5) { // user setting skipped or completed
+                    for (key in workstation[ws].blocks) {
+                        var blockedwsnum = workstation[ws].blocks[key];
+                        var blockedws = document.getElementById("substat-wsnum-" + blockedwsnum);
+                        var blockedwsname = document.getElementById("substat-wsname-" + blockedwsnum).innerHTML;
+                        var oktowait = 1;
+                        var suboutput = '';
+                        for (key2 in workstation[blockedwsnum].depends) {
+                            var dependentwsnum = workstation[blockedwsnum].depends[key2];
+                            var dependentws = document.getElementById("substat-wsnum-" + dependentwsnum);
+                            var dependentwsname = document.getElementById("substat-wsname-" + dependentwsnum).innerHTML;
+                            var dependentwsvalue = dependentws.options[dependentws.selectedIndex].value;
+                            if (!(dependentwsvalue == 5 || dependentws.value == 4)) {
+                                oktowait = 0;
+                                suboutput = suboutput + "Not setting " + blockedwsname + " to waiting because it still depends on " + dependentwsname + " which has not yet been completed or skipped.";
+                            }
+                        }
+                        if (suboutput != '') {
+                            alert(suboutput);
+                        }
+                        if (oktowait) {
+                            blockedws.value = 2;
+                            blockedws.parentNode.parentNode.style.backgroundColor = status_info[2].color;
+                            document.getElementById("substat-wsnum-" + blockedwsnum + "-oldvalue").value = blockedws.options[blockedws.selectedIndex].value;
+                        }
+                    }
+                }
+                return true;
+            };
+        --></script>
 <div class="wrap">
 <?php echo "<h3>", htmlspecialchars("$episode->series_name Episode $episode->episode_number:"), "</h3>";
 // The numbers in the following table are all generated by graphviz's "dot" when
@@ -461,11 +588,13 @@ $wsboxheight = 392; // top of bottom row + row height (357 + 35)
   <?php foreach (array(1,2,3,4,5,6,7,8,9,10) as $wsnum) { ?>
   <table style="width: 250px; height: 35px; position: absolute; left: <?php echo $wsposleft[$wsnum]; ?>px; top: <?php echo $wspostop[$wsnum]; ?>px;">
   <tr style="background-color: <?php echo "#",htmlspecialchars($episode->workstation[$wsnum]->color); ?>">
-  <td style="width: 67%; padding: 0.5em;"><?php echo htmlspecialchars($episode->workstation[$wsnum]->name); ?></td>
-  <td style="width: 33%; padding: 0.5em;"><select id="substat-wsnum-<?php echo $wsnum; ?>" name="substat-wsnum-<?php echo $wsnum; ?>">
+  <td style="width: 67%; padding: 0.5em;" id="substat-wsname-<?php echo $wsnum; ?>"><?php echo htmlspecialchars($episode->workstation[$wsnum]->name); ?></td>
+  <td style="width: 33%; padding: 0.5em;">
+        <input type="hidden" id="substat-wsnum-<?php echo $wsnum; ?>-oldvalue" name="substat-wsnum-<?php echo $wsnum; ?>-oldvalue" value="<?php echo htmlspecialchars($episode->workstation[$wsnum]->status); ?>" />
+        <select id="substat-wsnum-<?php echo $wsnum; ?>" name="substat-wsnum-<?php echo $wsnum; ?>" onchange="return substatus_ws_triggers(this);">
 <?php
         foreach ($status as $statustype) {
-            ?><option value="<?php echo htmlspecialchars($statustype->id) ?>" onclick="void(this.parentNode.parentNode.parentNode.style.backgroundColor='<?php echo "#", htmlspecialchars($statustype->color); ?>');" <?php if ($episode->workstation[$wsnum]->status == $statustype->id) { echo 'selected="selected"'; } ?>><?php echo htmlspecialchars($statustype->abbrev); ?></option>
+            ?><option value="<?php echo htmlspecialchars($statustype->id) ?>"<?php if ($episode->workstation[$wsnum]->status == $statustype->id) { echo ' selected="selected"'; } ?>><?php echo htmlspecialchars($statustype->abbrev); ?></option>
 <?php } ?>
 </select>
   </td>
