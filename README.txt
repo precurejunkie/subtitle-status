@@ -19,6 +19,7 @@ See the Github page for roadmap and bug reports.
 http://github.com/precurejunkie/subtitle-status
 
 == Installation ==  
+
 1. Place the unpacked "subtitle-status" directory in the "/wp-content/plugins/" directory.
 1. Activate the plugin through the "Plugins" menu in WordPress.
 1. Go to "Subtitle Status" under "Settings" and create at least one series and add an episode to it
