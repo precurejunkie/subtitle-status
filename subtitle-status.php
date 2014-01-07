@@ -80,6 +80,15 @@ function substatus_install() {
 
     $dbprefix = $wpdb->prefix . "substat_";
 
+    //
+    // CREATE THE TABLES IF THEY DON'T EXIST
+    //
+
+    // This code checks if each table exists, and creates it if it doesn't.
+    // No checks are made that the DDL for the table actually matches,
+    // only if it doesn't exist yet. If the columns or indexes need to
+    // change it'll need update code (see below).
+
     $sql = "CREATE TABLE ${dbprefix}series (
   id   MEDIUMINT(9) NOT NULL AUTO_INCREMENT,
   name VARCHAR(128),
@@ -144,23 +153,46 @@ function substatus_install() {
 );";
     substatus_create_table( $sql );
 
+    //
+    // DATABSE UPDATE CODE
+    //
+
+    // Check the stored database schema version and compare it to the version
+    // required for this version of the plugin.  Run any SQL updates required
+    // to bring the DB schema into compliance with the current version.
+    // If new tables are created, you don't need to do anything about that
+    // here, since the table code above takes care of that.  All that needs
+    // to be done here is to make any required changes to existing tables.
+    // Don't forget that any changes made here also need to be made to the DDL
+    // for the tables above.
+
     $installed_version = get_option("substatus_db_version");
     if (empty($installed_version)) {
         // if we get here, it's a new install, and the schema will be correct
-        // from the initialization, so make it the current version so we don't
-        // run any update code.
+        // from the initialization of the tables above, so make it the
+        // current version so we don't run any update code.
         $installed_version = $substatus_db_version;
         add_option( "substatus_db_version", $substatus_db_version );
     }
     if ($installed_version < 2) {
+        // Add a timestamp column which will auto-update every time the row is touched
         $wpdb->query("ALTER TABLE ${dbprefix}workstation_status ADD COLUMN status_date TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+        // Assume anything already in the database was done when this update
+        // ocurred (rather than Jan 1, 1000 AD)
         $wpdb->query("UPDATE ${dbprefix}workstation_status SET status_date = NOW()");
     }
     if ($installed_version < 3) {
+        // anything new is going to not be visible by default
         $wpdb->query("ALTER TABLE ${dbprefix}episode ADD COLUMN visible INT(1) DEFAULT 0");
+        // all existing stuff in the database is going to be assumed to be visible though
         $wpdb->query("UPDATE ${dbprefix}episode SET visible=1");
     }
+
+    // insert next database revision update code immediately above this line.
+    // don't forget to increment $substatus_db_version at the top of the file.
+
     if ($installed_version < $substatus_db_version ) {
+        // updates are done, update the schema version to say we did them
         update_option( "substatus_db_version", $substatus_db_version );
     }
 }
