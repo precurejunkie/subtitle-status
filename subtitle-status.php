@@ -330,6 +330,49 @@ function substatus_options() {
     }
 
     //
+    // EDIT A SERIES
+    //
+    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'series-edit' ) {
+        if ( isset($_POST["Submit"]) && $_POST["Submit"] == __("Cancel") ) {
+            // User hit the cancel button - do nothing
+        }
+        else {
+            $series_id = $_POST["substat_series_id"];
+            $series_name = trim($_POST["substat_series_name"]);
+            $series_oldname = $wpdb->get_var($wpdb->prepare("SELECT name FROM ${dbprefix}series WHERE id=%d", array($series_id)));
+            // check that a series name was passed and that it doesn't already exist
+            if (isset($series_name)) {
+                if ($series_name == $series_oldname) {
+                    // they didn't change anything
+?>
+    <div class="error"><p><strong>You didn't make any changes.</strong></p></div>
+<?php
+                }
+                else {
+                    $seriesexists = $wpdb->get_var($wpdb->prepare("SELECT id FROM ${dbprefix}series WHERE name = %s", array($series_name)));
+                    if (isset($seriesexists)) {
+?>
+    <div class="error"><p><strong>The series name '<?php echo htmlspecialchars($series_name); ?>' is already in use.</strong></p></div>
+<?php
+                    }
+                    else {
+                        // it's unique, do the update.
+                        $wpdb->query($wpdb->prepare("UPDATE ${dbprefix}series SET name = %s WHERE id = %d", array($series_name, $series_id)));
+?>
+    <div class="updated"><p><strong>Series '<?php echo htmlspecialchars($series_oldname); ?>' renamed to '<?php echo htmlspecialchars($series_name); ?>'.</strong></p></div>
+<?php
+                    }
+                }
+            }
+            else {
+?>
+    <div class="error"><p><strong>Form validation error.</strong></p></div>
+<?php
+            }
+        }
+    }
+
+    //
     // ADD AN EPISODE
     //
     if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'episode-add' ) {
@@ -470,6 +513,34 @@ function substatus_options() {
 </p>
 </form>
 <?php
+    }
+
+    //
+    // EDIT SERIES SCREEN
+    //
+    elseif( isset($_GET["action"]) && $_GET["action"] == "edit-series" && isset($_GET["series-id"]) && preg_match("/^(\d+)\$/",$_GET["series-id"], &$matches)) {
+        $series_id = $matches[0];
+        $series_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ${dbprefix}series WHERE id = %d", array($series_id)));
+        if (!isset($series_name)) {
+            // passed series ID doesn't exist
+?>
+    <div class="error"><p><strong>Invalid Series ID.</strong></p></div>
+<?php
+        }
+        else {
+?>
+<h3>Edit series</h3>
+<form name="substat-series-edit" method="post" action="options-general.php?page=subtitle-status">
+<input type="hidden" name="<?php echo $hidden_field_name; ?>" value="series-edit" />
+<input type="hidden" name="substat_series_id" value="<?php echo htmlspecialchars($series_id); ?>" />
+<p><label for="substat_series_name">Series name:</label><input type="text" id="substat_series_name" name="substat_series_name" value="<?php echo htmlspecialchars($series_name); ?>" /></p>
+<p class="submit" style="text-align: left;">
+<input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
+<input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Cancel') ?>" />
+</p>
+</form>
+<?php
+        }
     }
 
     //
@@ -769,7 +840,7 @@ foreach ($results as $statuscode) {
     $results = $wpdb->get_results("SELECT * FROM ${dbprefix}series ORDER BY id");
     foreach ($results as $series) {
 ?>
-    <tr><td><?php echo htmlspecialchars($series->name); ?></td><td><a href="">Edit</a></td></tr>
+    <tr><td><?php echo htmlspecialchars($series->name); ?></td><td><a href="?page=subtitle-status&amp;action=edit-series&amp;series-id=<?php echo htmlspecialchars($series->id); ?>">Edit</a></td></tr>
 <?php
     }
 ?>
