@@ -297,9 +297,42 @@ function substatus_options() {
     }
 
     //
+    // ADD A SERIES
+    //
+    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'series-add' ) {
+        if ( isset($_POST["Submit"]) && $_POST["Submit"] == __("Cancel") ) {
+            // User hit the cancel button - do nothing
+        }
+        else {
+            $series_name = trim($_POST["substat_series_name"]);
+            // check that a series name was passed and that it doesn't already exist
+            if (isset($series_name)) {
+                $seriesexists = $wpdb->get_var($wpdb->prepare("SELECT id FROM ${dbprefix}series WHERE name = %s", array($series_name)));
+                if (isset($seriesexists)) {
+?>
+    <div class="error"><p><strong>Series '<?php echo htmlspecialchars($series_name); ?>' already exists.</strong></p></div>
+<?php
+                }
+                else {
+                    // it's unique, do the insert.
+                    $wpdb->query($wpdb->prepare("INSERT INTO ${dbprefix}series (name) VALUES (%s)", array($series_name)));
+?>
+    <div class="updated"><p><strong>Series '<?php echo htmlspecialchars($series_name); ?>' created.</strong></p></div>
+<?php
+                }
+            }
+            else {
+?>
+    <div class="error"><p><strong>Form validation error.</strong></p></div>
+<?php
+            }
+        }
+    }
+
+    //
     // ADD AN EPISODE
     //
-    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'episode-add' ){
+    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'episode-add' ) {
         if ( isset($_POST["Submit"]) && $_POST["Submit"] == __("Cancel") ) {
             // User hit the cancel button - do nothing
         }
@@ -423,9 +456,26 @@ function substatus_options() {
     $matches = array();
 
     //
+    // ADD SERIES SCREEN
+    //
+    if( isset($_GET["action"]) && $_GET["action"] == "add-series" ){
+?>
+<h3>Add a series</h3>
+<form name="substat-series-add" method="post" action="options-general.php?page=subtitle-status">
+<input type="hidden" name="<?php echo $hidden_field_name; ?>" value="series-add">
+<p><label for="substat_series_name">Series name:</label><input type="text" id="substat_series_name" name="substat_series_name" /></p>
+<p class="submit" style="text-align: left;">
+<input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
+<input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Cancel') ?>" />
+</p>
+</form>
+<?php
+    }
+
+    //
     // ADD EPISODE SCREEN
     //
-    if( isset($_GET["action"]) && $_GET["action"] == "add-episode" ) {
+    elseif( isset($_GET["action"]) && $_GET["action"] == "add-episode" ) {
         $serieslist = array();
         $results = $wpdb->get_results("SELECT * FROM ${dbprefix}series ORDER BY id");
         foreach ($results as $seriesrow) {
@@ -437,7 +487,7 @@ function substatus_options() {
         }
 ?>
     <h3>Add an episode</h3>
-<form name="substat-episode-edit" method="post" action="options-general.php?page=subtitle-status">
+<form name="substat-episode-add" method="post" action="options-general.php?page=subtitle-status">
 <input type="hidden" name="<?php echo $hidden_field_name; ?>" value="episode-add">
 <table>
   <tr><th>Series:</th>
@@ -723,7 +773,7 @@ foreach ($results as $statuscode) {
 <?php
     }
 ?>
-<tr><td></td><td><a href="">Add Series</a></td></tr>
+<tr><td></td><td><a href="?page=subtitle-status&amp;action=add-series">Add Series</a></td></tr>
 </tbody>
 </table>
 </div>
