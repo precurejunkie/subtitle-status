@@ -16,7 +16,7 @@ Currently provides two widgets:
 1. All episodes widget - lists all episodes that have the visible flag enabled in the admin.
 
 See the Github page for roadmap and bug reports.  
-http://github.com/precurejunkie/subtitle-status
+http://github.com/precurejunkie/subtitle-status/wiki
 
 == Installation ==  
 
