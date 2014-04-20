@@ -2,7 +2,7 @@
 Contributors: PrecureJunkie  
 Tags: fansub, subtitle, status  
 Requires at least: 3.0.1  
-Tested up to: 3.6  
+Tested up to: 3.9  
 Stable tag: trunk  
 License: GPLv2 or later  
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -27,6 +27,9 @@ http://github.com/precurejunkie/subtitle-status/wiki
 1. Go to the "Widgets" page and put the widget where you want it.
 
 == Changelog ==  
+= 1.0.1 =
+* Make the plugin updater work, so it will tell you when a new version is available
+
 = 1.0 =  
 * Initial release.
 
