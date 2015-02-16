@@ -534,7 +534,7 @@ function substatus_options() {
     //
     // EDIT SERIES SCREEN
     //
-    elseif( isset($_GET["action"]) && $_GET["action"] == "edit-series" && isset($_GET["series-id"]) && preg_match("/^(\d+)\$/",$_GET["series-id"], &$matches)) {
+    elseif( isset($_GET["action"]) && $_GET["action"] == "edit-series" && isset($_GET["series-id"]) && preg_match("/^(\d+)\$/",$_GET["series-id"], $matches)) {
         $series_id = $matches[0];
         $series_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM ${dbprefix}series WHERE id = %d", array($series_id)));
         if (!isset($series_name)) {
@@ -603,7 +603,7 @@ function substatus_options() {
     //
     // EDIT EPISODE WORKSTATION STATUSES SCREEN
     //
-    elseif( isset($_GET["action"]) && $_GET["action"] == "edit-episode" && isset($_GET["episode-id"]) && preg_match("/^(\d+)\$/",$_GET["episode-id"], &$matches)) {
+    elseif( isset($_GET["action"]) && $_GET["action"] == "edit-episode" && isset($_GET["episode-id"]) && preg_match("/^(\d+)\$/",$_GET["episode-id"], $matches)) {
         $episode_id = $matches[0];
 
         $status = substatus_get_statusinfo();
