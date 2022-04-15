@@ -31,8 +31,8 @@ register_activation_hook( __FILE__, 'substatus_install_data' );
 add_action( 'admin_enqueue_scripts', 'substat_enqueue_color_picker' );
 add_action( 'admin_enqueue_scripts', 'substat_enqueue_widget_css' );
 add_action( 'wp_enqueue_scripts', 'substat_enqueue_widget_css' );
-add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget_episode");'));
-add_action( 'widgets_init', create_function('', 'return register_widget("subtitle_status_widget_listall");'));
+add_action( 'widgets_init', function() { return register_widget("subtitle_status_widget_episode"); } );
+add_action( 'widgets_init', function() { return register_widget("subtitle_status_widget_listall"); } );
 add_action( 'plugins_loaded', 'substatus_update_db_check' );
 add_action( 'init', 'substat_plugin_updater_init' );
 
@@ -987,8 +987,8 @@ function substatus_emit_widget_episode($episode_id) {
 // THE SINGLE EPISODE WIDGET
 //
 class subtitle_status_widget_episode extends WP_Widget {
-    function subtitle_status_widget_episode() {
-        parent::WP_Widget(false, $name = "Subtitle Status Single Episode");
+    function __construct() {
+        parent::__construct(false, $name = "Subtitle Status Single Episode");
     }
     function form($instance) {
         global $wpdb;
@@ -1031,8 +1031,8 @@ echo '<option value="' . htmlspecialchars($option->id) . '" id="' . htmlspecialc
 // THE ALL-EPISODES WIDGET
 //
 class subtitle_status_widget_listall extends WP_Widget {
-    function subtitle_status_widget_listall() {
-        parent::WP_Widget(false, $name = "Subtitle Status All Episodes");
+    function __construct() {
+        parent::__construct(false, $name = "Subtitle Status All Episodes");
     }
     function form($instance) {
 ?>
