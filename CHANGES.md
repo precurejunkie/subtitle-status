@@ -1,5 +1,8 @@
 #### [unreleased]
 
+#### 1.1 / 2022-04-15
+
+* Change the update system from AutoHosted to Git Updater
 * Fixed a problem that prevented you from using the same episode number in multiple series (#6)
 * Compatibility fixes for PHP 7
 

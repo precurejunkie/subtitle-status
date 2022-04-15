@@ -3,7 +3,7 @@
 Plugin Name: Subtitle Status Widget
 Plugin URI: https://www.curecom.net/subtitle-status
 Description: A widget to show the progress towards fansub releases
-Version: 1.0.1
+Version: 1.1
 Requires at least: 5.2
 Requires PHP: 7.3
 Author: PrecureJunkie
