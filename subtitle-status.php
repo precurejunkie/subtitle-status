@@ -62,7 +62,7 @@ function substat_plugin_updater_init() {
 }
 
 global $substatus_db_version;
-$substatus_db_version = 3;
+$substatus_db_version = 4;
 
 function substatus_create_table($ddl) {
     global $wpdb;
@@ -118,7 +118,7 @@ function substatus_install() {
   episode_number VARCHAR(20),
   visible        INT(1) DEFAULT 0,
   PRIMARY KEY (id),
-  UNIQUE (episode_number),
+  UNIQUE epnum_index (series_id, episode_number),
   FOREIGN KEY (series_id) REFERENCES ${dbprefix}series (id)
 );";
     substatus_create_table( $sql );
@@ -202,6 +202,20 @@ function substatus_install() {
         $wpdb->query("ALTER TABLE ${dbprefix}episode ADD COLUMN visible INT(1) DEFAULT 0");
         // all existing stuff in the database is going to be assumed to be visible though
         $wpdb->query("UPDATE ${dbprefix}episode SET visible=1");
+    }
+
+    if ($installed_version < 4) {
+        // episode number index should include the series in its uniqueness
+
+        // previous schemas only had one index touching that column, but didn't
+        // specify a name, so the name will have been auto-generated, and we
+        // need to search for it, then remove all the matches we find.
+        $result = $wpdb->get_results("SHOW INDEXES FROM ${dbprefix}episode WHERE Column_name='episode_number'");
+        foreach ($result as $row) {
+            $wpdb->query($wpdb->prepare("ALTER TABLE ${dbprefix}episode DROP INDEX %s", $row->Key_name));
+        }
+        // now that the existing ones are dropped, add the fixed one:
+        $wpdb->query("ALTER TABLE ${dbprefix}episode ADD UNIQUE INDEX epnum_index (series_id, episode_number)");
     }
 
     // insert next database revision update code immediately above this line.
