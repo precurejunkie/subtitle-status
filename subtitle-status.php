@@ -51,7 +51,7 @@ function substat_enqueue_widget_css() {
 }
 
 global $substatus_db_version;
-$substatus_db_version = 4;
+$substatus_db_version = 5;
 
 function substatus_create_table($ddl) {
     global $wpdb;
@@ -75,6 +75,17 @@ function substatus_create_table($ddl) {
         }
     }
     return false;
+}
+
+function delTree($dir)
+{
+    $files = array_diff(scandir($dir), array('.', '..'));
+
+    foreach ($files as $file) {
+        (is_dir("$dir/$file")) ? delTree("$dir/$file") : unlink("$dir/$file");
+    }
+
+    return rmdir($dir);
 }
 
 function substatus_install() {
@@ -205,6 +216,21 @@ function substatus_install() {
         }
         // now that the existing ones are dropped, add the fixed one:
         $wpdb->query("ALTER TABLE ${dbprefix}episode ADD UNIQUE INDEX epnum_index (series_id, episode_number)");
+    }
+
+    if ($installed_version < 5) {
+        // no db changes, but need to make a one-time change when this version
+        // is picked up...
+        // Git Updater actually won't work if a .git directory is present,
+        // because it assumes you have it checked out from git in order to
+        // update it from there manually.  So we need to one-time nuke the
+        // .git directory just to make sure it can update.  If someone
+        // installs a version newer than this one via git clone it'll stick
+        // around for the correct reason.
+
+        if (is_dir( __DIR__ . '/.git' )) {
+            delTree( __DIR__ . '/.git' );
+        }
     }
 
     // insert next database revision update code immediately above this line.
