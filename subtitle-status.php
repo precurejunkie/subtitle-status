@@ -1,15 +1,20 @@
 <?php
 /*
 Plugin Name: Subtitle Status Widget
-Plugin URI: http://www.curecom.net/subtitle-status
+Plugin URI: https://www.curecom.net/subtitle-status
 Description: A widget to show the progress towards fansub releases
 Version: 1.0.1
+Requires at least: 5.2
+Requires PHP: 7.3
 Author: PrecureJunkie
 Author URI: http://twitter.com/precurejunkie
 Author Email: precurejunkie@gmail.com
+GitHub Plugin URI: https://github.com/precurejunkie/subtitle-status
+Primary Branch: main
+Release Asset: true
 */
 
-/*  Copyright 2014  PrecureJunkie (email : precurejunkie@gmail.com)
+/*  Copyright 2014-2022  PrecureJunkie (email : precurejunkie@gmail.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License, version 2, as
@@ -34,7 +39,6 @@ add_action( 'wp_enqueue_scripts', 'substat_enqueue_widget_css' );
 add_action( 'widgets_init', function() { return register_widget("subtitle_status_widget_episode"); } );
 add_action( 'widgets_init', function() { return register_widget("subtitle_status_widget_listall"); } );
 add_action( 'plugins_loaded', 'substatus_update_db_check' );
-add_action( 'init', 'substat_plugin_updater_init' );
 
 function substat_enqueue_color_picker( $hook_suffix ) {
     // first check that $hook_suffix is appropriate for your admin page
@@ -44,21 +48,6 @@ function substat_enqueue_color_picker( $hook_suffix ) {
 function substat_enqueue_widget_css() {
     wp_register_style( 'subtitle-status', plugins_url('substatus.css', __FILE__) );
     wp_enqueue_style( 'subtitle-status' );
-}
-
-function substat_plugin_updater_init() {
-    /* Load Plugin Updater */
-    require_once( trailingslashit( plugin_dir_path( __FILE__ ) ) . 'includes/plugin-updater.php' );
-
-    /* Updater Config */
-    $config = array(
-        'base'      => plugin_basename( __FILE__ ), //required
-        'repo_uri'  => 'http://www.curecom.net/',
-        'repo_slug' => 'subtitle-status',
-    );
-
-    /* Load Updater Class */
-    new SubStatus_Plugin_Updater( $config );
 }
 
 global $substatus_db_version;
