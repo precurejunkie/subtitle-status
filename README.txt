@@ -1,14 +1,14 @@
-=== Subtitle Status ===
-Contributors: PrecureJunkie
-Tags: fansub, subtitle, status
-Requires at least: 5.2
-Tested up to: 5.9
-License: GPLv2 or later
+=== Subtitle Status ===  
+Contributors: PrecureJunkie  
+Tags: fansub, subtitle, status  
+Requires at least: 5.2  
+Tested up to: 5.9  
+License: GPLv2 or later  
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
 Provides widgets to display the status of a subtitling project.
 
-== Description ==
+== Description ==  
 Currently provides two widgets:
 
 1. Single episode widget - displays the status of any single episode, regardless of the visibility flag
